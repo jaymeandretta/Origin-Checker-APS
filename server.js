@@ -9,4 +9,6 @@ app.use(
 );
 app.use(require("./routes/auth.js"));
 app.use(require("./routes/hubs.js"));
+app.use(require("./routes/webhook.js"));
+
 app.listen(PORT, () => console.log(`Server listening on port ${PORT}...`));

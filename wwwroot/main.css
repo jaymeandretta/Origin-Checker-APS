@@ -3,7 +3,7 @@ html {
   margin: 0;
   padding: 0;
   height: 100vh;
-  font-family: ArtifaktElement;
+  font-family: "Roboto", sans-serif;
 }
 
 #header,
@@ -42,13 +42,17 @@ html {
 }
 
 #login {
-  font-family: ArtifaktElement;
-  font-size: 1em;
+  font-family: inherit;
+  font-size: 0.8em;
 }
 
 #header .title {
   height: auto;
   margin-right: auto;
+}
+
+#header .logo {
+  height: 5em;
 }
 
 #tree {
