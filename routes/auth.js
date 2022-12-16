@@ -4,6 +4,7 @@ const {
   authCallbackMiddleware,
   authRefreshMiddleware,
   getUserProfile,
+  addtoMongoDB,
 } = require("../services/aps.js");
 
 let router = express.Router();
@@ -31,6 +32,12 @@ router.get(
   async function (req, res, next) {
     try {
       const profile = await getUserProfile(req.internalOAuthToken);
+      let tokenBody = {
+        access_token: req.session.internal_token,
+        refresh_token: req.session.refresh_token,
+        expires_at: req.session.expires_at,
+      };
+      addtoMongoDB(profile.userId, tokenBody);
       res.json({ name: `${profile.firstName} ${profile.lastName}` });
     } catch (err) {
       next(err);
