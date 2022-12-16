@@ -5,7 +5,14 @@ const {
   APS_CALLBACK_URL,
   INTERNAL_TOKEN_SCOPES,
   PUBLIC_TOKEN_SCOPES,
+  MONGO_CONN_STRING,
+  MONGO_COLLECTION,
+  MONGO_DB
 } = require("../config.js");
+
+var axios = require("axios").default;
+const request = require("request");
+var MongoClient = require('mongodb').MongoClient;
 
 const internalAuthClient = new APS.AuthClientThreeLegged(
   APS_CLIENT_ID,
@@ -19,6 +26,11 @@ const publicAuthClient = new APS.AuthClientThreeLegged(
   APS_CALLBACK_URL,
   PUBLIC_TOKEN_SCOPES
 );
+const internalAuthClient2LO = new APS.AuthClientTwoLegged(
+  APS_CLIENT_ID,
+  APS_CLIENT_SECRET,
+  INTERNAL_TOKEN_SCOPES,
+  true);
 
 const service = (module.exports = {});
 
@@ -35,6 +47,10 @@ service.authCallbackMiddleware = async (req, res, next) => {
   req.session.expires_at = Date.now() + internalCredentials.expires_in * 1000;
   next();
 };
+
+service.webhookMiddleware = async (req, res, next) => {
+  next();
+}
 
 service.authRefreshMiddleware = async (req, res, next) => {
   const { refresh_token, expires_at } = req.session;
@@ -120,3 +136,123 @@ service.getItemVersions = async (projectId, itemId, token) => {
   );
   return resp.body.data;
 };
+
+service.getItemVersion = async (projectId, versionId, token) => {
+  var options = {
+    method: 'GET',
+    url: `https://developer.api.autodesk.com/data/v1/projects/b.${projectId}/versions/${encodeURIComponent(versionId)}`,
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  };
+
+  let storageUrn = '';
+  await axios.request(options).then(function (response) {
+    storageUrn = response.data.data.relationships.storage.data.id;
+    return response.data.data.relationships.storage.data.id;
+  }).catch(function (error) {
+    console.error(error);
+  });
+  return storageUrn;
+};
+
+service.postWorkitem = async (activityId, two_legged_token, three_legged_token, input_file_urn, output_file_urn, coordinates_csv_urn, inputParamsJson) => {
+
+  const workitemBody = {
+    activityId: activityId,
+    arguments: {
+      inputFile: {
+        url: input_file_urn,
+        verb: "get",
+        Headers: {
+          Authorization: 'Bearer ' + three_legged_token
+        }
+      },
+      coordinates: {
+        url: coordinates_csv_urn,
+        verb: "get",
+        Headers: {
+          Authorization: 'Bearer ' + two_legged_token
+        }
+      },
+      inputParams: {
+        verb: "get",
+        url: "data:application/json," + JSON.stringify(inputParamsJson)
+      },
+      result: {
+        verb: "put",
+        url: output_file_urn,
+        Headers: {
+          Authorization: "Bearer " + two_legged_token
+        }
+      }
+    }
+  };
+
+  var options = {
+    method: 'POST',
+    url: "https://developer.api.autodesk.com/da/us-east/v3/workitems",
+    headers: {
+      Authorization: 'Bearer ' + two_legged_token,
+      'Content-Type': 'application/json'
+    },
+    body: workitemBody,
+    json: true
+  };
+
+  request(options, function (error, response, body) {
+    if (error) {
+      reject(error);
+    } else {
+      let resp;
+      try {
+        resp = JSON.parse(body)
+      } catch (e) {
+        resp = body
+      }
+      console.log(resp);
+    }
+  });
+}
+
+service.getInternalToken = async () => {
+  if (!internalAuthClient2LO.isAuthorized()) {
+    await internalAuthClient2LO.authenticate();
+  }
+  return internalAuthClient2LO.getCredentials();
+};
+
+service.readFromMongoDB = async (id) => {
+  const client = new MongoClient(MONGO_CONN_STRING);
+  let result;
+  try {
+    const db = await client.db(MONGO_DB);
+    const collection = await db.collection(MONGO_COLLECTION);
+    const findresult = await collection.findOne({ _id: id });
+    result = findresult ? findresult : "not found!";
+  }
+  finally {
+    client.close();
+  }
+  return result;
+}
+
+service.addtoMongoDB = async (dataId, dataBody) => {
+  const client = new MongoClient(MONGO_CONN_STRING);
+  try {
+    const db = await client.db(MONGO_DB);
+    const collection = await db.collection(MONGO_COLLECTION);
+    const findresult = await collection.findOne({ _id: dataId });
+    if (findresult) {
+      const filter = { _id: dataId };
+      const replaceresult = await collection.replaceOne(filter, dataBody);
+    }
+    else {
+      dataBody._id = dataId;
+      const insertresult = await collection.insertOne(dataBody);
+    }
+  }
+  finally {
+    client.close();
+  }
+}
