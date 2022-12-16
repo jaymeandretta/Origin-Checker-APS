@@ -34,7 +34,7 @@ async function getProjects(hubId) {
 async function getContents(hubId, projectId, folderId = null) {
   const contents = await getJSON(
     `/api/hubs/${hubId}/projects/${projectId}/contents` +
-      (folderId ? `?folder_id=${folderId}` : "")
+    (folderId ? `?folder_id=${folderId}` : "")
   );
   return contents.map((item) => {
     if (item.type === "folders") {

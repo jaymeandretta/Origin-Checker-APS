@@ -1,5 +1,6 @@
 const express = require("express");
 const bodyParser = require('body-parser');
+const APS = require("forge-apis");
 const {
   authRefreshMiddleware,
   getHubs,
@@ -9,8 +10,14 @@ const {
   postWorkitem,
   getInternalToken,
   getItemVersion,
+  readFromMongoDB,
+  addtoMongoDB
 } = require("../services/aps.js");
 const {
+  APS_CLIENT_ID,
+  APS_CLIENT_SECRET,
+  APS_CALLBACK_URL,
+  INTERNAL_TOKEN_SCOPES,
   APS_BUCKET_KEY,
   ACTIVITY_ID
 } = require("../config.js");
@@ -20,7 +27,7 @@ router.use("/api/webhooks", bodyParser.json());
 router.post("/api/webhooks", async function (req, res, next) {
   try {
     let two_legged_token = await getInternalToken();
-    let three_legged_token = 'eyJhbGciOiJSUzI1NiIsImtpZCI6IlU3c0dGRldUTzlBekNhSzBqZURRM2dQZXBURVdWN2VhIn0.eyJzY29wZSI6WyJkYXRhOndyaXRlIiwiZGF0YTpjcmVhdGUiLCJkYXRhOnJlYWQiLCJidWNrZXQ6cmVhZCIsImJ1Y2tldDp1cGRhdGUiLCJidWNrZXQ6ZGVsZXRlIiwiYnVja2V0OmNyZWF0ZSIsImNvZGU6YWxsIiwidmlld2FibGVzOnJlYWQiXSwiY2xpZW50X2lkIjoiMVN0UWVHdVkxWm5Db3lWS0JNR3hSU3I2THpXU3lVMzEiLCJhdWQiOiJodHRwczovL2F1dG9kZXNrLmNvbS9hdWQvYWp3dGV4cDYwIiwianRpIjoiV2dmcktsRDVUMkhSU2thWHlLQThpWnBEWGUxZ01aeVVFMldpWHJWQXgyUDRoWmUxcnRRVEhmNmNNdjBydjlDRiIsInVzZXJpZCI6Ilk4UUJKOTJURlhLQiIsImV4cCI6MTY3MTE5Mjc4NX0.fEKqmOz4mG2Sp1rZxU8MTdO4jq9VgjcoZnGaveAOF9l_Vv4h9ORuIb_l0t026OaRC9HlD6w-cxMAafd5CXzJRGD-4JnNcdjB4tr2Id08m4pa2GSHdHoDBj4UoezeijfWP8qlON0n7FdQf5aS1ReD-FJ49aRjVkSVMPwkajFuVGGS7RQ3d_fBmJp2MQQaMIr6tjkvopASsjdWpcLGv6eKwooDCtGjvjlevUVtnJtvLV3oBzQBDYDjAPakbuT6cN2cfbCdqUv8MMO3nrPDwkQU5e3OX-_Ks7Zivnj2gKkqD_unfqp9JSupFBZGJAv6po4v5sAHlUkBeZO0Do2D0t7pFw';
+    let three_legged_token = await getThreeLeggedTokenFromMongoDB();
     let project_id = req.body.payload.project;
     let source_version_urn = req.body.resourceUrn;
     let input_file_urn = await getItemVersion(project_id, source_version_urn, two_legged_token.access_token);
@@ -47,5 +54,31 @@ router.post("/api/webhooks", async function (req, res, next) {
     next(err);
   }
 });
+
+async function getThreeLeggedTokenFromMongoDB() {
+  let tokenData = await readFromMongoDB("Y8QBJ92TFXKB");
+  if (tokenData == "not found!") {
+    return undefined;
+  }
+  else {
+    if (true || Date.now() >= tokenData.expires_at * 1000) {
+      let newInternalAuthClient = new APS.AuthClientThreeLegged(
+        APS_CLIENT_ID,
+        APS_CLIENT_SECRET,
+        APS_CALLBACK_URL,
+        INTERNAL_TOKEN_SCOPES
+      );
+      let refresh_token = tokenData.refresh_token;
+      let newTokenData = await newInternalAuthClient.refreshToken({ refresh_token });
+      let newTokenBody = {
+        access_token: newTokenData.access_token,
+        refresh_token: newTokenData.refresh_token,
+        expires_at: newTokenData.expires_at
+      };
+      addtoMongoDB("Y8QBJ92TFXKB", newTokenBody);
+      return newTokenData.access_token;
+    }
+  }
+}
 
 module.exports = router;

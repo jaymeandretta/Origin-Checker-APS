@@ -210,6 +210,7 @@ service.postWorkitem = async (activityId, two_legged_token, three_legged_token, 
       } catch (e) {
         resp = body
       }
+      response
       console.log(resp);
     }
   });
