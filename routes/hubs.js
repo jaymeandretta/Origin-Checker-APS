@@ -5,6 +5,9 @@ const {
   getProjects,
   getProjectContents,
   getItemVersions,
+  getVersionName,
+  getJSONFromFile,
+  getInternalToken
 } = require("../services/aps.js");
 
 let router = express.Router();
@@ -64,5 +67,28 @@ router.get(
     }
   }
 );
+
+router.get("/api/hubs/projects/:project_id/versions/:version_urn",
+  async function (req, res, next) {
+    try {
+      const versionInfo = await getVersionName(req.params.project_id, req.params.version_urn + `?version=${req.query.version}`, req.internalOAuthToken);
+      let outputFileName = `${versionInfo.attributes.displayName.slice(0, -4) + versionInfo.attributes.versionNumber}`;
+      res.json({ modelName: outputFileName })
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+router.get("/api/hubs/models",
+  async function (req, res, next) {
+    try {
+      let two_legged_token = await getInternalToken();
+      const modelJSONData = await getJSONFromFile(req.query.model_name + '.json', two_legged_token.access_token)
+    } catch (err) {
+      next(err);
+    }
+  }
+)
 
 module.exports = router;

@@ -7,10 +7,10 @@ const {
   PUBLIC_TOKEN_SCOPES,
   MONGO_CONN_STRING,
   MONGO_COLLECTION,
-  MONGO_DB
+  MONGO_DB,
+  APS_BUCKET_KEY
 } = require("../config.js");
 
-var axios = require("axios").default;
 const request = require("request");
 var MongoClient = require('mongodb').MongoClient;
 
@@ -136,6 +136,61 @@ service.getItemVersions = async (projectId, itemId, token) => {
   );
   return resp.body.data;
 };
+
+service.getVersionName = async (projectId, versionUrn, token) => {
+  const resp = await new APS.VersionsApi().getVersion(
+    projectId,
+    versionUrn,
+    internalAuthClient,
+    token
+  );
+  return resp.body.data;
+};
+
+async function getDownloadUrl(bucketKey, objectKey, minutesExpiration) {
+  let endpoint = `buckets/${bucketKey}/objects/${encodeURIComponent(objectKey)}/signeds3download`;
+  if (minutesExpiration) {
+    endpoint += `?minutesExpiration=${minutesExpiration}`;
+  }
+  const headers = {
+    'Content-Type': 'application/json',
+    'Authorization': 'Bearer ' + this.token
+  };
+  const resp = await axios.get(endpoint, { headers });
+  return resp.data;
+}
+
+service.getJSONFromFile = async (fileName, token) => {
+  const results = await new APS.ObjectsApi().downloadResources(
+    APS_BUCKET_KEY,
+    [
+      { objectKey: fileName, responseType: 'arraybuffer' }
+    ],
+    {
+      // minutesExpiration: 5,
+      useCdn: true,
+      // onDownloadProgress: (data) => { ... },
+      // onRefreshToken: async () => { ... },
+    },
+    internalAuthClient2LO,
+    token
+  );
+
+  // const downloadParams = await getDownloadUrl(APS_BUCKET_KEY, fileName, 30);
+  // if (downloadParams.status !== 'complete') {
+  //   throw new Error('File not available for download yet.');
+  // }
+  // const resp = await this.axios.get(downloadParams.url, {
+  //   responseType: 'arraybuffer',
+  //   onDownloadProgress: progressEvent => {
+  //     const downloadedBytes = progressEvent.currentTarget.response.length;
+  //     const totalBytes = parseInt(progressEvent.currentTarget.responseHeaders['Content-Length']);
+  //     console.debug('Downloaded', downloadedBytes, 'bytes of', totalBytes);
+  //   }
+  // });
+
+  var temp = JSON.parse(results.toString());
+}
 
 service.getItemVersion = async (projectId, versionId, token) => {
   var options = {

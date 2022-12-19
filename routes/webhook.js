@@ -61,7 +61,7 @@ async function getThreeLeggedTokenFromMongoDB() {
     return undefined;
   }
   else {
-    if (true || Date.now() >= tokenData.expires_at * 1000) {
+    if (Date.now() >= tokenData.expires_at * 1000) {
       let newInternalAuthClient = new APS.AuthClientThreeLegged(
         APS_CLIENT_ID,
         APS_CLIENT_SECRET,
